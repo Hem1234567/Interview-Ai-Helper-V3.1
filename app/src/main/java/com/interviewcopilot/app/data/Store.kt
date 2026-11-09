@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.interviewcopilot.app.core.EduLevel
+import com.interviewcopilot.app.core.Marksheet
+import com.interviewcopilot.app.core.SubjectMark
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -28,12 +31,16 @@ data class JobProfile(
 
 object Defaults {
     val map: Map<String, String> = mapOf(
-        "provider" to "Local",
+        "provider" to "Auto",
         "fallback" to "true",
         "orKey" to "",
-        "orModel" to "google/gemini-2.0-flash-001",
+        // Several models can be listed, separated by commas. They are tried in order, so one that was retired
+        // or is rate limited does not stop the answer.
+        "orModel" to "openrouter/free",
         "geminiKey" to "",
-        "geminiModel" to "gemini-2.0-flash",
+        "geminiModel" to "gemini-3.1-flash-lite, gemini-2.5-flash-lite, gemini-2.5-flash",
+        "groqKey" to "",
+        "groqModel" to "openai/gpt-oss-20b, openai/gpt-oss-120b",
         "localModelId" to "",
         "whisperModelId" to "whisper-base",
         "sttEngine" to "Auto",
@@ -152,6 +159,67 @@ class Store(private val ctx: Context) {
                 )
             }
             jobsFile.writeText(arr.toString())
+        } catch (ignored: Exception) {
+        }
+    }
+
+    /** Marksheets read in Settings > Education, keyed by [EduLevel.key]. Stored in the encrypted preferences. */
+    fun loadMarks(): Map<String, Marksheet> {
+        return try {
+            val raw = prefs.getString("marks_v1", "") ?: ""
+            if (raw.isBlank()) return emptyMap()
+            val root = JSONObject(raw)
+            val out = LinkedHashMap<String, Marksheet>()
+            for (level in EduLevel.values()) {
+                val o = root.optJSONObject(level.key) ?: continue
+                val subs = o.optJSONArray("subjects") ?: JSONArray()
+                val list = (0 until subs.length()).map { i ->
+                    val so = subs.getJSONObject(i)
+                    SubjectMark(so.getString("name"), so.getDouble("obtained"), so.getDouble("max"))
+                }
+                val warns = o.optJSONArray("warnings") ?: JSONArray()
+                out[level.key] = Marksheet(
+                    level = level,
+                    subjects = list,
+                    printedTotal = o.optDouble("printedTotal", Double.NaN).takeUnless { it.isNaN() },
+                    printedMax = o.optDouble("printedMax", Double.NaN).takeUnless { it.isNaN() },
+                    printedPercent = o.optDouble("printedPercent", Double.NaN).takeUnless { it.isNaN() },
+                    cgpa = o.optDouble("cgpa", Double.NaN).takeUnless { it.isNaN() },
+                    cgpaFormula = o.optString("cgpaFormula", "x9.5"),
+                    institution = o.optString("institution", ""),
+                    fileName = o.optString("fileName", ""),
+                    source = o.optString("source", ""),
+                    warnings = (0 until warns.length()).map { warns.getString(it) },
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun saveMarks(all: Map<String, Marksheet>) {
+        try {
+            val root = JSONObject()
+            for ((key, m) in all) {
+                val subs = JSONArray()
+                m.subjects.forEach { subs.put(JSONObject().put("name", it.name).put("obtained", it.obtained).put("max", it.max)) }
+                val warns = JSONArray()
+                m.warnings.forEach { warns.put(it) }
+                val o = JSONObject()
+                    .put("subjects", subs)
+                    .put("cgpaFormula", m.cgpaFormula)
+                    .put("institution", m.institution)
+                    .put("fileName", m.fileName)
+                    .put("source", m.source)
+                    .put("warnings", warns)
+                m.printedTotal?.let { o.put("printedTotal", it) }
+                m.printedMax?.let { o.put("printedMax", it) }
+                m.printedPercent?.let { o.put("printedPercent", it) }
+                m.cgpa?.let { o.put("cgpa", it) }
+                root.put(key, o)
+            }
+            prefs.edit().putString("marks_v1", root.toString()).apply()
         } catch (ignored: Exception) {
         }
     }

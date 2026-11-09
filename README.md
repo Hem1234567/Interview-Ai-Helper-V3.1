@@ -20,6 +20,17 @@ The UI follows Apple's Human Interface Guidelines in a single pastel palette; th
 Each question is independent unless **Settings > Conversation memory** is on. The rules live in one pure,
 unit-tested reducer: `core/VoiceFlow.kt`.
 
+## What is new in 2.1
+
+* **Continuous listening.** Pauses never end the capture. Every finished sentence is added to the text box and the mic stays open until you
+  tap it again (or tap **Generate Answer**, which finishes the capture and then answers). Nothing is answered before you tap.
+* **Clear** button next to Generate Answer empties the text box, also while listening.
+* **Engine drop-down** (top left of the Assistant): Auto, Local, OpenRouter, Google, Groq. **Auto** tries Groq, Google and OpenRouter (those with keys),
+  skips an engine that fails or hits its limit (it is not retried for a while), and ends on the on-device model.
+* **Settings > AI engines**: API keys, several models per engine (tried in order) and a Test button that shows the time to first word.
+* **Education** (Settings > Résumé and education): upload 10th, 12th and college marksheets (PDF or photo). Marks are read on the phone (ML Kit),
+  or by Gemini when a Google key is set. Check or fix any mark; the percentage (and CGPA conversion) updates and is used in answers.
+
 ## Setup
 
 Requirements: JDK 17, Android SDK 35, Android Studio Ladybug or newer (the NDK 27.2 and CMake 3.22.1 install
@@ -75,6 +86,11 @@ differ from the cached prefix are evaluated, so the system prompt, résumé and 
 limited to 2048 tokens, output defaults to short, and inference and transcription run on background threads. Each
 CPU feature level (dot-product, i8mm, ...) ships as a plug-in library and the best one for the phone is chosen at start-up.
 The answer card shows the measured time to first word.
+
+### Speed notes
+
+Cloud engines get a short first-word timeout (Groq 2.5 s, Google 3 s, OpenRouter 3.5 s) and the whole cloud phase is limited to about 4 s before Auto
+goes to the local model. Secure connections are opened when you tap the mic. Speed depends on your network and, for Local, on the phone.
 
 ## CI (GitHub Actions)
 

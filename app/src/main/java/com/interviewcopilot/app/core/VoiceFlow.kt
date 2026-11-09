@@ -7,16 +7,27 @@ data class VoiceState(
     val stage: Stage = Stage.Idle,
     /** The editable text box. Filled by speech, editable by the user, cleared after an answer. */
     val text: String = "",
-    /** Live (not yet final) transcription shown while the user is speaking. */
+    /** Live (not yet final) transcription of the sentence being spoken right now. */
     val partial: String = "",
     /** The question that the visible answer belongs to. */
     val question: String = "",
     val answer: String = "",
     val error: String? = null,
 ) {
+    /** Everything the person has said so far, including the sentence still being decoded. */
+    val shown: String get() = joinText(text, partial)
+
     /** "Generate Answer" is only usable with non-blank text and when nothing is running. */
     val canGenerate: Boolean
         get() = text.isNotBlank() && (stage == Stage.Idle || stage == Stage.Transcribed)
+
+    /** The button is also live while listening: tapping it finishes the capture first, then answers. */
+    val canTapGenerate: Boolean
+        get() = canGenerate || (stage == Stage.Listening && shown.isNotBlank())
+
+    /** "Clear" empties the text box at any time except while an answer is being written. */
+    val canClear: Boolean
+        get() = shown.isNotBlank() && stage != Stage.Generating
 
     val canStop: Boolean get() = stage == Stage.Generating
     val micBusy: Boolean get() = stage == Stage.Generating
@@ -25,9 +36,15 @@ data class VoiceState(
 sealed interface VoiceEvent {
     data object MicTapped : VoiceEvent
     data class Partial(val text: String) : VoiceEvent
+
+    /** One finished sentence while the mic is still open. It is added to the text and listening continues. */
+    data class SegmentFinal(val text: String) : VoiceEvent
+
+    /** Capture ended. [text] is whatever was still unreported; earlier sentences already arrived as [SegmentFinal]. */
     data class SpeechFinal(val text: String) : VoiceEvent
     data class SpeechFailed(val message: String) : VoiceEvent
     data class TextEdited(val text: String) : VoiceEvent
+    data object ClearTapped : VoiceEvent
     data object GenerateTapped : VoiceEvent
     data class Token(val answerSoFar: String) : VoiceEvent
     data object GenerationFinished : VoiceEvent
@@ -41,6 +58,8 @@ sealed interface VoiceEvent {
  *
  * Idle -> Listening -> Transcribed -> Generating -> Answered -> Idle
  *
+ * Listening does not end when the speaker pauses: every finished sentence is appended to the text and the
+ * microphone stays open until the person taps the mic again (or taps Generate Answer).
  * Nothing in here ever starts generation by itself; only [VoiceEvent.GenerateTapped] does.
  */
 object VoiceFlow {
@@ -52,7 +71,8 @@ object VoiceFlow {
                 // the controller stops capture, the final text arrives as SpeechFinal
                 Stage.Generating -> s
 
-                else -> s.copy(stage = Stage.Listening, text = "", partial = "", error = null)
+                // Existing text is kept: speaking again adds to it. Use Clear to start over.
+                else -> s.copy(stage = Stage.Listening, partial = "", error = null)
             }
         }
 
@@ -60,18 +80,31 @@ object VoiceFlow {
             if (s.stage == Stage.Listening) s.copy(partial = e.text) else s
         }
 
+        is VoiceEvent.SegmentFinal -> {
+            if (s.stage == Stage.Listening) s.copy(text = joinText(s.text, e.text), partial = "") else s
+        }
+
         is VoiceEvent.SpeechFinal -> {
             if (s.stage != Stage.Listening) {
                 s
-            } else if (e.text.isBlank()) {
-                s.copy(stage = Stage.Idle, partial = "", error = "I did not catch that. Tap the mic and try again.")
             } else {
-                s.copy(stage = Stage.Transcribed, text = e.text.trim(), partial = "", error = null)
+                val all = joinText(s.text, e.text)
+                if (all.isBlank()) {
+                    s.copy(stage = Stage.Idle, text = "", partial = "", error = "I did not catch that. Tap the mic and try again.")
+                } else {
+                    s.copy(stage = Stage.Transcribed, text = all, partial = "", error = null)
+                }
             }
         }
 
         is VoiceEvent.SpeechFailed -> {
-            if (s.stage == Stage.Listening) s.copy(stage = Stage.Idle, partial = "", error = e.message) else s
+            if (s.stage == Stage.Listening) {
+                // Keep what was already heard so nothing the person said is lost.
+                val kept = joinText(s.text, s.partial)
+                s.copy(stage = if (kept.isBlank()) Stage.Idle else Stage.Transcribed, text = kept, partial = "", error = e.message)
+            } else {
+                s
+            }
         }
 
         is VoiceEvent.TextEdited -> {
@@ -83,6 +116,14 @@ object VoiceFlow {
                 else -> {
                     s
                 }
+            }
+        }
+
+        VoiceEvent.ClearTapped -> {
+            when (s.stage) {
+                Stage.Generating -> s
+                Stage.Listening -> s.copy(text = "", partial = "", error = null)
+                else -> s.copy(stage = Stage.Idle, text = "", partial = "", error = null)
             }
         }
 

@@ -1,3 +1,12 @@
+# Version 2.1
+
+* Continuous speech: pauses no longer end listening; sentences accumulate; Whisper uses earlier text as context; hallucination filter (`core/Text.kt`).
+* Generate Answer works while listening (finishes capture first). New Clear button.
+* Engine drop-down with Auto fallback (`core/Engine.kt`), Groq added, multiple models per engine, cooldown after limits, 4 s budget, connection pre-warm.
+* Fixed: retired default models (gemini-2.0-flash) are migrated; Google key now sent in a header.
+* Marksheet reader for 10th, 12th and college (`edu/MarksheetReader.kt`, `core/Marks.kt`) with editable marks and CGPA conversion.
+* New unit tests: voice flow, transcript cleaner, engine routing, marksheet parsing.
+
 # Summary of changes
 
 ## Voice and speech

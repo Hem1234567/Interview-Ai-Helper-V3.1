@@ -14,7 +14,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -85,6 +84,7 @@ fun HomeScreen(vm: CopilotVM, onOpenSettings: () -> Unit, onOpenModels: () -> Un
 
     LargeTitleScreen(
         title = "Assistant",
+        leading = { EngineMenu(vm) },
         actions = { CircleButton(Sym.gear, "Settings", size = 36.dp, onClick = onOpenSettings) },
     ) {
         // Mode picker
@@ -102,7 +102,7 @@ fun HomeScreen(vm: CopilotVM, onOpenSettings: () -> Unit, onOpenModels: () -> Un
         }
         Spacer(Modifier.height(14.dp))
 
-        if (!vm.hasLocalModel && vm.g("orKey").isBlank() && vm.g("geminiKey").isBlank()) {
+        if (!vm.hasLocalModel && vm.g("orKey").isBlank() && vm.g("geminiKey").isBlank() && vm.g("groqKey").isBlank()) {
             GetModelCard(vm, onOpenModels)
             Spacer(Modifier.height(14.dp))
         }
@@ -125,7 +125,7 @@ fun HomeScreen(vm: CopilotVM, onOpenSettings: () -> Unit, onOpenModels: () -> Un
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Txt(
                         when (v.stage) {
-                            Stage.Listening -> "Listening…"
+                            Stage.Listening -> "Listening… pauses are fine, tap the mic to finish"
                             Stage.Transcribed -> "Review, edit, then generate"
                             Stage.Generating -> "Answering"
                             else -> "Your question"
@@ -134,14 +134,11 @@ fun HomeScreen(vm: CopilotVM, onOpenSettings: () -> Unit, onOpenModels: () -> Un
                         c.text2,
                         Modifier.weight(1f),
                     )
-                    if (v.text.isNotEmpty() && v.stage != Stage.Generating && v.stage != Stage.Listening) {
-                        Txt("Clear", Type.footnote, c.text, Modifier.pressable { vm.editText("") }.padding(4.dp))
-                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 val listening = v.stage == Stage.Listening
                 IosField(
-                    value = if (listening) v.partial else v.text,
+                    value = if (listening) v.shown else v.text,
                     onChange = { vm.editText(it) },
                     hint = if (listening) "Speak now…" else "Tap the mic and speak, or type here",
                     singleLine = false,
@@ -168,14 +165,23 @@ fun HomeScreen(vm: CopilotVM, onOpenSettings: () -> Unit, onOpenModels: () -> Un
                 "Generate Answer",
                 Modifier.weight(1f),
                 kind = ButtonKind.Success,
-                enabled = v.canGenerate,
+                enabled = v.canTapGenerate,
                 icon = Sym.sparkles,
             ) { strongHaptic(); vm.generateTapped() }
-            AnimatedVisibility(v.canStop, enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start), exit = fadeOut()) {
-                IosButton("Stop", Modifier.padding(start = 0.dp).width(110.dp), kind = ButtonKind.Danger, icon = Sym.stop) {
+            // Stop takes the place of Clear while an answer is being written (Clear is not usable then anyway).
+            if (v.canStop) {
+                IosButton("Stop", Modifier.width(104.dp), kind = ButtonKind.Danger, icon = Sym.stop) {
                     strongHaptic()
                     vm.stopGeneration()
                 }
+            } else {
+                IosButton(
+                    "Clear",
+                    Modifier.width(104.dp),
+                    kind = ButtonKind.Secondary,
+                    enabled = v.canClear,
+                    icon = Sym.trash,
+                ) { strongHaptic(); vm.clearTapped() }
             }
         }
         Spacer(Modifier.height(16.dp))

@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Colour and Material rules
-        run: ./scripts/check-colors.sh
+        run: sh scripts/check-colors.sh
 
       - name: ktlint
         run: |
@@ -45,7 +45,7 @@ jobs:
           java-version: '17'
 
       - name: Accept Android SDK licences
-        run: ./scripts/accept-sdk-licenses.sh
+        run: sh scripts/accept-sdk-licenses.sh
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
@@ -78,7 +78,7 @@ jobs:
           java-version: '17'
 
       - name: Accept Android SDK licences
-        run: ./scripts/accept-sdk-licenses.sh
+        run: sh scripts/accept-sdk-licenses.sh
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
@@ -115,7 +115,7 @@ jobs:
           java-version: '17'
 
       - name: Accept Android SDK licences
-        run: ./scripts/accept-sdk-licenses.sh
+        run: sh scripts/accept-sdk-licenses.sh
 
       # llama.cpp and whisper.cpp are pinned by commit and cached, never committed to the repo.
       - name: Cache native sources
@@ -126,7 +126,7 @@ jobs:
           key: native-src-${{ hashFiles('scripts/fetch-native-deps.sh') }}
 
       - name: Fetch native sources
-        run: ./scripts/fetch-native-deps.sh
+        run: sh scripts/fetch-native-deps.sh
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4

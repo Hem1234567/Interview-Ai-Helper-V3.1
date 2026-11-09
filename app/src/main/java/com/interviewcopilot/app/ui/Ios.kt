@@ -424,6 +424,7 @@ fun LargeTitleScreen(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     backLabel: String = "Back",
+    leading: (@Composable RowScope.() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -441,6 +442,9 @@ fun LargeTitleScreen(
                     Sf(Sym.chevronLeft, c.text, 22.dp, description = "Back")
                     Txt(backLabel, Type.body, c.text)
                 }
+            }
+            if (onBack == null && leading != null) {
+                Row(Modifier.align(Alignment.CenterStart).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically, content = leading)
             }
             Txt(title, Type.headline, c.text, Modifier.align(Alignment.Center).alpha(smallAlpha), maxLines = 1)
             Row(Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically, content = actions)

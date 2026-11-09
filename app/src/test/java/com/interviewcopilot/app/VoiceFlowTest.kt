@@ -107,4 +107,69 @@ class VoiceFlowTest {
         assertEquals("Two", second.question)
         assertEquals("", second.answer)
     }
+
+    @Test
+    fun pausesNeverEndListeningAndSentencesAccumulate() {
+        var s = run(VoiceEvent.MicTapped, VoiceEvent.Partial("what is"))
+        assertEquals("what is", s.shown)
+        s = VoiceFlow.reduce(s, VoiceEvent.SegmentFinal("What is a thread?"))
+        assertEquals(Stage.Listening, s.stage)
+        assertEquals("", s.partial)
+        // the person pauses, then keeps talking: the first sentence must still be there
+        s = VoiceFlow.reduce(s, VoiceEvent.Partial("and a process"))
+        assertEquals("What is a thread? and a process", s.shown)
+        s = VoiceFlow.reduce(s, VoiceEvent.SegmentFinal("And a process?"))
+        s = VoiceFlow.reduce(s, VoiceEvent.SpeechFinal(""))
+        assertEquals(Stage.Transcribed, s.stage)
+        assertEquals("What is a thread? And a process?", s.text)
+        assertEquals("", s.answer)
+    }
+
+    @Test
+    fun finalTailIsAppendedToEarlierSentences() {
+        val s = run(VoiceEvent.MicTapped, VoiceEvent.SegmentFinal("First part."), VoiceEvent.SpeechFinal("Second part."))
+        assertEquals("First part. Second part.", s.text)
+    }
+
+    @Test
+    fun speakingAgainKeepsExistingText() {
+        val s = run(VoiceEvent.MicTapped, VoiceEvent.SpeechFinal("Explain REST."), VoiceEvent.MicTapped, VoiceEvent.SegmentFinal("And SOAP."))
+        assertEquals(Stage.Listening, s.stage)
+        assertEquals("Explain REST. And SOAP.", s.text)
+    }
+
+    @Test
+    fun clearEmptiesTheBoxInEveryStageExceptGenerating() {
+        val listening = run(VoiceEvent.MicTapped, VoiceEvent.SegmentFinal("Hello"), VoiceEvent.Partial("wor"), VoiceEvent.ClearTapped)
+        assertEquals(Stage.Listening, listening.stage)
+        assertEquals("", listening.shown)
+
+        val done = run(VoiceEvent.MicTapped, VoiceEvent.SpeechFinal("Hello there"), VoiceEvent.ClearTapped)
+        assertEquals(Stage.Idle, done.stage)
+        assertEquals("", done.text)
+        assertFalse(done.canGenerate)
+
+        val busy = run(VoiceEvent.MicTapped, VoiceEvent.SpeechFinal("Hello"), VoiceEvent.GenerateTapped, VoiceEvent.ClearTapped)
+        assertEquals(Stage.Generating, busy.stage)
+        assertEquals("Hello", busy.text)
+    }
+
+    @Test
+    fun clearButtonAndGenerateRulesWhileListening() {
+        val empty = run(VoiceEvent.MicTapped)
+        assertFalse(empty.canClear)
+        assertFalse(empty.canTapGenerate)
+        val heard = run(VoiceEvent.MicTapped, VoiceEvent.Partial("hello"))
+        assertTrue(heard.canClear)
+        assertTrue(heard.canTapGenerate)
+        assertFalse(heard.canGenerate)
+    }
+
+    @Test
+    fun microphoneFailureKeepsWhatWasAlreadyHeard() {
+        val s = run(VoiceEvent.MicTapped, VoiceEvent.SegmentFinal("Tell me about yourself."), VoiceEvent.SpeechFailed("Microphone stopped responding."))
+        assertEquals(Stage.Transcribed, s.stage)
+        assertEquals("Tell me about yourself.", s.text)
+        assertTrue(s.error != null)
+    }
 }
