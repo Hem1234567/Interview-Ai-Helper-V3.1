@@ -15,7 +15,7 @@ permissions:
 
 env:
   KTLINT_VERSION: '1.8.0'
-  KTLINT_SHA256: 'a3fd620207d5c40da6ca789b95e7f823c54e854b7fade7f613e91096a3706d75'
+  KTLINT_SHA256: '369ad2b789f95a011f807e1fcb690ccef80bd7cd014fd139e73ae82dcc0baeab'
 
 # Action versions are pinned to full commit SHAs (the comment shows the release).
 jobs:
@@ -40,10 +40,9 @@ jobs:
         run: |
           curl --fail --location --show-error --retry 5 --retry-all-errors --retry-delay 10 \
             --connect-timeout 30 --max-time 300 \
-            -o ktlint "https://github.com/pinterest/ktlint/releases/download/${KTLINT_VERSION}/ktlint"
-          echo "${KTLINT_SHA256}  ktlint" | sha256sum -c -
-          chmod +x ktlint
-          ./ktlint "app/src/**/*.kt" "*.kts" "app/*.kts"
+            -o ktlint.jar "https://repo.maven.apache.org/maven2/com/pinterest/ktlint/ktlint-cli/${KTLINT_VERSION}/ktlint-cli-${KTLINT_VERSION}-all.jar"
+          echo "${KTLINT_SHA256}  ktlint.jar" | sha256sum -c -
+          java -jar ktlint.jar "app/src/**/*.kt" "*.kts" "app/*.kts"
 
       - name: Accept Android SDK licences
         run: sh scripts/accept-sdk-licenses.sh
